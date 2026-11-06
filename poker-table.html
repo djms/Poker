@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Poker Table</title>
+<style>
+  :root {
+    --bg: #101418;
+    --panel: #1b2229;
+    --panel-2: #232c35;
+    --text: #e8edf2;
+    --muted: #8a97a5;
+    --felt: #1f6b3f;
+    --felt-dark: #15492b;
+    --rail: #4a2e1a;
+    --accent: #f0b429;
+    --good: #3ddc84;
+    --warn: #ffb648;
+    --bad: #ff5c5c;
+    --hearts: #e03a3a;
+    --diamonds: #2f7de1;
+    --clubs: #2fa05a;
+    --spades: #1b1b1b;
+    --card-w: 34px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  body { padding-bottom: 40px; }
+  header {
+    display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+    position: sticky; top: 0; background: var(--bg); z-index: 5; border-bottom: 1px solid #222a32;
+  }
+  header h1 { font-size: 17px; margin: 0; flex: 1; font-weight: 600; }
+  button { font: inherit; cursor: pointer; }
+  .btn {
+    background: var(--panel-2); color: var(--text); border: 1px solid #334050; border-radius: 10px;
+    padding: 8px 12px; font-size: 14px;
+  }
+  .btn.danger { border-color: #7a2b2b; color: #ffb3b3; }
+  .btn.icon { width: 40px; height: 38px; padding: 0; font-size: 20px; line-height: 1; }
+  main { max-width: 560px; margin: 0 auto; padding: 12px 12px 0; }
+
+  /* ---------- Table ---------- */
+  .table-wrap { position: relative; width: 100%; aspect-ratio: 1 / 1.22; }
+  .table {
+    position: absolute; inset: 9% 7%; border-radius: 50% / 50%;
+    background: radial-gradient(ellipse at center, var(--felt) 0%, var(--felt-dark) 100%);
+    box-shadow: 0 0 0 10px var(--rail), 0 0 0 12px #2a180d, inset 0 0 40px rgba(0,0,0,.35);
+  }
+  .seat {
+    position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 3px;
+    z-index: 2;
+  }
+  .seat .label {
+    font-size: 11px; font-weight: 600; background: #0e141a; color: #d5dde5; padding: 2px 8px; border-radius: 10px;
+    border: 1px solid #334050; cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  .seat.folded .label { color: var(--muted); border-color: #2a333d; text-decoration: line-through; }
+  .seat.folded .cards { opacity: .35; filter: grayscale(1); }
+  .seat.hero .label { background: var(--accent); color: #1a1200; border-color: var(--accent); cursor: default; }
+  .seat.hero { --card-w: 48px; }
+  .cards { display: flex; gap: 3px; }
+  .crowded { aspect-ratio: 1 / 1.4; }
+  .crowded .seat { --card-w: 28px; }
+  .crowded .seat.hero { --card-w: 42px; }
+  .crowded .board { --card-w: 34px; }
+  .crowded .seat .label { font-size: 10px; padding: 1px 6px; }
+
+  .center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 6px; width: 70%; }
+  .center .phase { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: #bfe6cf; font-weight: 600; }
+  .board { display: flex; gap: 5px; --card-w: 40px; }
+  .burn-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-top: 4px; }
+  .burn-wrap .phase { font-size: 9px; color: #9fcbb0; letter-spacing: 1px; }
+  .burn { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; --card-w: 28px; }
+
+  /* ---------- Cards ---------- */
+  .card {
+    width: var(--card-w); height: calc(var(--card-w) * 1.4); border-radius: calc(var(--card-w) * .12);
+    position: relative; font-weight: 700; user-select: none; cursor: pointer; flex: none;
+    transition: transform .08s;
+  }
+  .card:active { transform: scale(.94); }
+  .card.face {
+    background: #fdfdfb; color: var(--c); border: 1px solid #c9c9c9;
+    box-shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+  .card.face .tl, .card.face .br { position: absolute; line-height: 1; font-size: calc(var(--card-w) * .34); }
+  .card.face .tl { top: 6%; left: 9%; }
+  .card.face .br { bottom: 6%; right: 9%; transform: rotate(180deg); }
+  .card.face .tl small, .card.face .br small { display: block; font-size: calc(var(--card-w) * .28); }
+  .card.face .mid { position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%); font-size: calc(var(--card-w) * .62); line-height: 1; }
+  .card.s-h { --c: var(--hearts); } .card.s-d { --c: var(--diamonds); } .card.s-c { --c: var(--clubs); } .card.s-s { --c: var(--spades); }
+  body.two-color { --diamonds: var(--hearts); --clubs: var(--spades); }
+  .btn.selected { border-color: var(--accent); color: var(--accent); }
+  .card.back {
+    background: repeating-linear-gradient(45deg, #566573 0 3px, #4a5866 3px 6px);
+    border: 2px solid #8794a1; opacity: .9;
+  }
+  .card.back::after { content: "?"; position: absolute; inset: 0; display: grid; place-items: center; color: #d9e1e8; font-size: calc(var(--card-w) * .5); }
+  .card.empty { border: 2px dashed rgba(255,255,255,.45); background: rgba(0,0,0,.15); }
+  .card.empty::after { content: "+"; position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255,255,255,.6); font-size: calc(var(--card-w) * .5); }
+  .card.empty.locked { border-color: rgba(255,255,255,.15); cursor: default; }
+  .card.empty.locked::after { content: ""; }
+  .card.disabled { opacity: .25; cursor: default; }
+  .card.tiny { --card-w: 24px; }
+
+  /* ---------- Panels ---------- */
+  .panel { background: var(--panel); border: 1px solid #27313b; border-radius: 14px; padding: 12px 14px; margin-top: 12px; }
+  .panel h2 { font-size: 13px; margin: 0 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+  .stat-row { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-top: 1px solid #27313b; gap: 10px; }
+  .stat-row:first-of-type { border-top: 0; }
+  .stat-row .k { color: var(--muted); font-size: 13px; }
+  .stat-row .v { font-weight: 600; font-size: 15px; text-align: right; }
+  .big { font-size: 20px; font-weight: 700; }
+  .hint { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 6px 0 0; }
+  .bar { height: 10px; border-radius: 6px; background: #2b3540; overflow: hidden; margin-top: 6px; display: flex; }
+  .bar > div { height: 100%; }
+  .bar .w { background: var(--good); } .bar .t { background: var(--warn); } .bar .l { background: var(--bad); }
+  .bar-legend { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .verdict { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 13px; font-weight: 700; }
+  .verdict.good { background: rgba(61,220,132,.15); color: var(--good); }
+  .verdict.warn { background: rgba(255,182,72,.15); color: var(--warn); }
+  .verdict.bad { background: rgba(255,92,92,.15); color: var(--bad); }
+  .outs-group { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; margin: 4px 0; }
+  .outs-group .g { font-size: 12px; color: var(--muted); min-width: 110px; }
+  .chip { font-weight: 700; font-size: 13px; color: var(--c); background: #fdfdfb; border-radius: 4px; padding: 1px 4px; }
+  .chip.s-h { --c: var(--hearts); } .chip.s-d { --c: var(--diamonds); } .chip.s-c { --c: var(--clubs); } .chip.s-s { --c: var(--spades); }
+  .deck-grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 3px; }
+  .deck-grid .card { --card-w: 100%; width: 100%; height: auto; aspect-ratio: 1 / 1.4; cursor: default; font-size: 10px; }
+  .deck-grid .card .tl { font-size: 10px; } .deck-grid .card .tl small { font-size: 9px; } .deck-grid .card .mid { font-size: 14px; } .deck-grid .card .br { display: none; }
+  details summary { cursor: pointer; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+
+  /* ---------- Bottom sheet ---------- */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); opacity: 0; pointer-events: none; transition: opacity .18s; z-index: 20; }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-radius: 18px 18px 0 0;
+    padding: 12px 14px calc(16px + env(safe-area-inset-bottom)); transform: translateY(105%); transition: transform .2s ease-out; z-index: 21;
+    max-width: 560px; margin: 0 auto; box-shadow: 0 -8px 30px rgba(0,0,0,.5);
+  }
+  .sheet.open { transform: translateY(0); }
+  .sheet .handle { width: 40px; height: 4px; background: #3b4754; border-radius: 2px; margin: 0 auto 10px; }
+  .sheet .title { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .sheet .title strong { flex: 1; font-size: 15px; }
+  .suits { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .suit-btn {
+    display: flex; align-items: center; gap: 12px; background: var(--panel-2); border: 1px solid #334050; border-radius: 14px;
+    padding: 14px; color: var(--text); text-align: left;
+  }
+  .suit-btn .sym { font-size: 34px; line-height: 1; color: var(--c); }
+  .suit-btn .name { font-size: 15px; font-weight: 600; }
+  .suit-btn .alt { font-size: 12px; color: var(--muted); display: block; }
+  .suit-btn.s-h { --c: var(--hearts); } .suit-btn.s-d { --c: var(--diamonds); } .suit-btn.s-c { --c: var(--clubs); } .suit-btn.s-s { --c: var(--spades); }
+  .ranks { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+  .ranks .card { --card-w: 100%; width: 100%; height: auto; aspect-ratio: 1 / 1.4; }
+  .ranks .card .tl { font-size: 15px; } .ranks .card .tl small { font-size: 12px; } .ranks .card .mid { font-size: 26px; } .ranks .card .br { font-size: 15px; } .ranks .card .br small { font-size: 12px; }
+  .ranks .card .where { position: absolute; left: 0; right: 0; bottom: 2px; text-align: center; font-size: 10px; color: #333; font-weight: 600; }
+  .sheet .actions { display: flex; gap: 8px; margin-top: 12px; }
+  .sheet .actions .btn { flex: 1; }
+
+  /* ---------- Settings modal ---------- */
+  .modal { position: fixed; inset: 0; display: none; place-items: center; z-index: 30; background: rgba(0,0,0,.6); }
+  .modal.open { display: grid; }
+  .modal .box { background: var(--panel); border-radius: 16px; padding: 18px; width: min(92vw, 360px); }
+  .modal h3 { margin: 0 0 12px; font-size: 16px; }
+  .modal input[type=range] { width: 100%; }
+  .modal .val { font-size: 32px; font-weight: 700; text-align: center; margin: 6px 0 2px; }
+  .modal .sub { text-align: center; color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+  .modal .actions { display: flex; gap: 8px; margin-top: 14px; }
+  .modal .actions .btn { flex: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Poker Table</h1>
+  <button class="btn danger" id="resetBtn">Reset cards</button>
+  <button class="btn icon" id="gearBtn" title="Settings">⚙︎</button>
+</header>
+
+<main>
+  <div class="table-wrap">
+    <div class="table" id="table"></div>
+  </div>
+
+  <section class="panel" id="oddsPanel"></section>
+
+  <details class="panel">
+    <summary>Unseen cards</summary>
+    <div class="deck-grid" id="deckGrid" style="margin-top:10px"></div>
+    <p class="hint">Dimmed cards are already on the table, in your hand, exposed, or burned. Everything else could still be in the deck or in an opponent's hand.</p>
+  </details>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet">
+  <div class="handle"></div>
+  <div class="title"><button class="btn icon" id="sheetBack" style="display:none">‹</button><strong id="sheetTitle"></strong><button class="btn icon" id="sheetClose">×</button></div>
+  <div id="sheetBody"></div>
+  <div class="actions" id="sheetActions"></div>
+</div>
+
+<div class="modal" id="settings">
+  <div class="box">
+    <h3>Players at the table</h3>
+    <div class="val" id="playersVal">6</div>
+    <div class="sub">including you</div>
+    <input type="range" min="4" max="10" step="1" id="playersRange">
+    <p class="hint">Cards already placed are kept when you add or remove seats. Seats removed from the end lose their exposed cards.</p>
+    <h3 style="margin-top:18px">Deck colors</h3>
+    <div class="actions" style="margin-top:0">
+      <button class="btn" id="fourColorBtn">Four colors</button>
+      <button class="btn" id="twoColorBtn">Red &amp; black</button>
+    </div>
+    <div class="actions"><button class="btn" id="settingsClose">Done</button></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// Cards: id = rank*4 + suit. rank 0..12 = 2..A, suit 0..3 = h d c s
+// ============================================================
+const RANKS = ['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+const RANK_NAMES = ['Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Jack','Queen','King','Ace'];
+const RANK_PLURAL = ['Twos','Threes','Fours','Fives','Sixes','Sevens','Eights','Nines','Tens','Jacks','Queens','Kings','Aces'];
+const SUITS = ['h','d','c','s'];
+const SUIT_SYM = { h:'♥', d:'♦', c:'♣', s:'♠' };
+const SUIT_NAME = { h:['Hearts','Corazones'], d:['Diamonds','Diamantes'], c:['Clubs','Tréboles'], s:['Spades','Picas'] };
+const CAT_NAMES = ['High Card','Pair','Two Pair','Three of a Kind','Straight','Flush','Full House','Four of a Kind','Straight Flush'];
+const rankOf = id => id >> 2, suitOf = id => SUITS[id & 3];
+
+// --- EVAL START
+function straightHigh(m) {
+  const m2 = (m << 1) | ((m >> 12) & 1);
+  for (let h = 13; h >= 4; h--) if (((m2 >> (h - 4)) & 0x1f) === 0x1f) return h - 1;
+  return -1;
+}
+function topBits(mask, n) {
+  const out = [];
+  for (let r = 12; r >= 0 && out.length < n; r--) if (mask & (1 << r)) out.push(r);
+  return out;
+}
+function score(cat, kick) {
+  let s = cat;
+  for (let i = 0; i < 5; i++) s = s * 16 + (kick[i] ?? 0);
+  return s;
+}
+// returns {s: numeric score, cat, k: kickers}
+function evaluate(cards) {
+  const rc = new Array(13).fill(0), sc = [0,0,0,0], sm = [0,0,0,0];
+  let mask = 0;
+  for (const c of cards) { const r = c >> 2, s = c & 3; rc[r]++; sc[s]++; sm[s] |= 1 << r; mask |= 1 << r; }
+  let fs = -1;
+  for (let s = 0; s < 4; s++) if (sc[s] >= 5) fs = s;
+  if (fs >= 0) { const h = straightHigh(sm[fs]); if (h >= 0) return { s: score(8, [h]), cat: 8, k: [h] }; }
+  let quads = -1; const trips = [], pairs = [];
+  for (let r = 12; r >= 0; r--) { if (rc[r] === 4) quads = r; else if (rc[r] === 3) trips.push(r); else if (rc[r] === 2) pairs.push(r); }
+  const others = ex => { const o = []; for (let r = 12; r >= 0; r--) if (rc[r] > 0 && !ex.includes(r)) o.push(r); return o; };
+  if (quads >= 0) { const k = [quads, others([quads])[0]]; return { s: score(7, k), cat: 7, k }; }
+  if (trips.length && (pairs.length || trips.length > 1)) { const k = [trips[0], trips.length > 1 ? trips[1] : pairs[0]]; return { s: score(6, k), cat: 6, k }; }
+  if (fs >= 0) { const k = topBits(sm[fs], 5); return { s: score(5, k), cat: 5, k }; }
+  const st = straightHigh(mask); if (st >= 0) return { s: score(4, [st]), cat: 4, k: [st] };
+  if (trips.length) { const k = [trips[0], ...others([trips[0]]).slice(0, 2)]; return { s: score(3, k), cat: 3, k }; }
+  if (pairs.length >= 2) { const k = [pairs[0], pairs[1], others([pairs[0], pairs[1]])[0]]; return { s: score(2, k), cat: 2, k }; }
+  if (pairs.length === 1) { const k = [pairs[0], ...others([pairs[0]]).slice(0, 3)]; return { s: score(1, k), cat: 1, k }; }
+  const k = topBits(mask, 5); return { s: score(0, k), cat: 0, k };
+}
+function describe(ev) {
+  const k = ev.k;
+  switch (ev.cat) {
+    case 8: return k[0] === 12 ? 'Royal Flush' : `Straight Flush, ${RANK_NAMES[k[0]]} high`;
+    case 7: return `Four of a Kind, ${RANK_PLURAL[k[0]]}`;
+    case 6: return `Full House, ${RANK_PLURAL[k[0]]} full of ${RANK_PLURAL[k[1]]}`;
+    case 5: return `Flush, ${RANK_NAMES[k[0]]} high`;
+    case 4: return `Straight, ${RANK_NAMES[k[0]]} high`;
+    case 3: return `Three of a Kind, ${RANK_PLURAL[k[0]]}`;
+    case 2: return `Two Pair, ${RANK_PLURAL[k[0]]} and ${RANK_PLURAL[k[1]]}`;
+    case 1: return `Pair of ${RANK_PLURAL[k[0]]}`;
+    default: return `${RANK_NAMES[k[0]]} high`;
+  }
+}
+// --- EVAL END
+
+// ============================================================
+// State
+// ============================================================
+const KEY = 'pokerTableState.v1';
+let S = load();
+function fresh(players = 6) {
+  return { players, board: [null,null,null,null,null], hero: [null,null], seats: Array.from({ length: players - 1 }, () => ({ cards: [null,null], folded: false })), burn: [] };
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) { const s = JSON.parse(raw); if (s && s.seats && s.board) return s; }
+  } catch (e) {}
+  return fresh();
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+function usedMap() {
+  const m = new Map();
+  S.board.forEach((c, i) => { if (c != null) m.set(c, 'Board'); });
+  S.hero.forEach(c => { if (c != null) m.set(c, 'You'); });
+  S.seats.forEach((st, i) => st.cards.forEach(c => { if (c != null) m.set(c, 'Seat ' + (i + 1)); }));
+  S.burn.forEach(c => { if (c != null) m.set(c, 'Burned'); });
+  return m;
+}
+function getSlot(t) {
+  if (t.kind === 'board') return S.board[t.idx];
+  if (t.kind === 'hero') return S.hero[t.idx];
+  if (t.kind === 'seat') return S.seats[t.seat].cards[t.idx];
+  if (t.kind === 'burn') return S.burn[t.idx] ?? null;
+}
+function setSlot(t, id) {
+  if (t.kind === 'board') { S.board[t.idx] = id; S.board = S.board.filter(c => c != null); while (S.board.length < 5) S.board.push(null); }
+  else if (t.kind === 'hero') S.hero[t.idx] = id;
+  else if (t.kind === 'seat') S.seats[t.seat].cards[t.idx] = id;
+  else if (t.kind === 'burn') { if (id == null) S.burn.splice(t.idx, 1); else if (t.idx >= S.burn.length) S.burn.push(id); else S.burn[t.idx] = id; }
+  save(); render();
+}
+function slotTitle(t) {
+  if (t.kind === 'board') return ['Flop 1','Flop 2','Flop 3','Turn','River'][t.idx];
+  if (t.kind === 'hero') return 'Your card ' + (t.idx + 1);
+  if (t.kind === 'seat') return `Seat ${t.seat + 1} · card ${t.idx + 1}`;
+  return 'Burned / exposed card';
+}
+
+// ============================================================
+// Rendering
+// ============================================================
+function cardHTML(id, cls = '', extra = '') {
+  const r = RANKS[rankOf(id)], s = suitOf(id), sym = SUIT_SYM[s];
+  return `<div class="card face s-${s} ${cls}" ${extra}><span class="tl">${r}<small>${sym}</small></span><span class="mid">${sym}</span><span class="br">${r}<small>${sym}</small></span></div>`;
+}
+function slotHTML(t, opts = {}) {
+  const id = getSlot(t);
+  const data = `data-t='${JSON.stringify(t)}'`;
+  if (id != null) return cardHTML(id, 'slot', data);
+  if (opts.locked) return `<div class="card empty locked"></div>`;
+  if (opts.back) return `<div class="card back slot" ${data}></div>`;
+  return `<div class="card empty slot" ${data}></div>`;
+}
+function render() {
+  const n = S.players, tbl = document.getElementById('table');
+  let html = '';
+  // seats around the oval; index 0 = hero at bottom (90deg), others clockwise
+  const gap = n >= 8 ? 1.0 : 0.85; // radians kept clear on each side of the hero seat
+  tbl.parentElement.classList.toggle('crowded', n >= 8);
+  for (let i = 0; i < n; i++) {
+    const ang = i === 0 ? Math.PI / 2 : Math.PI / 2 + gap + ((i - 1) * (2 * Math.PI - 2 * gap)) / (n - 2);
+    const x = 50 + 41 * Math.cos(ang), y = 50 + (i === 0 ? 49 : 46) * Math.sin(ang);
+    if (i === 0) {
+      html += `<div class="seat hero" style="left:${x}%;top:${y}%"><div class="cards">${slotHTML({kind:'hero',idx:0})}${slotHTML({kind:'hero',idx:1})}</div><div class="label">You</div></div>`;
+    } else {
+      const st = S.seats[i - 1];
+      html += `<div class="seat ${st.folded ? 'folded' : ''}" style="left:${x}%;top:${y}%"><div class="label" data-seat="${i-1}">Seat ${i}${st.folded ? ' · fold' : ''}</div><div class="cards">${slotHTML({kind:'seat',seat:i-1,idx:0},{back:true})}${slotHTML({kind:'seat',seat:i-1,idx:1},{back:true})}</div></div>`;
+    }
+  }
+  const nb = S.board.filter(c => c != null).length;
+  const phase = ['Pre-flop','Flop','Flop','Flop','Turn','River'][nb];
+  html += `<div class="center"><div class="phase">${phase}</div><div class="board">`;
+  for (let i = 0; i < 5; i++) html += slotHTML({kind:'board',idx:i}, { locked: i > nb });
+  html += `</div><div class="burn-wrap"><div class="phase">Burned / exposed</div><div class="burn">`;
+  S.burn.forEach((c, i) => html += slotHTML({kind:'burn',idx:i}));
+  html += slotHTML({kind:'burn',idx:S.burn.length});
+  html += `</div></div></div>`;
+  tbl.innerHTML = html;
+  renderDeck();
+  computeOdds();
+}
+function renderDeck() {
+  const used = usedMap(); let html = '';
+  for (const s of [0,1,2,3]) for (let r = 12; r >= 0; r--) { const id = r * 4 + s; html += cardHTML(id, used.has(id) ? 'disabled' : ''); }
+  document.getElementById('deckGrid').innerHTML = html;
+}
+
+document.getElementById('table').addEventListener('click', e => {
+  const lbl = e.target.closest('.label[data-seat]');
+  if (lbl) { const st = S.seats[+lbl.dataset.seat]; st.folded = !st.folded; save(); render(); return; }
+  const slot = e.target.closest('.slot');
+  if (slot) openSheet(JSON.parse(slot.dataset.t));
+});
+
+// ============================================================
+// Bottom sheet picker
+// ============================================================
+let sheetTarget = null, sheetSuit = null;
+const sheet = document.getElementById('sheet'), scrim = document.getElementById('scrim');
+function openSheet(t) { sheetTarget = t; sheetSuit = null; drawSheet(); sheet.classList.add('open'); scrim.classList.add('open'); }
+function closeSheet() { sheet.classList.remove('open'); scrim.classList.remove('open'); sheetTarget = null; }
+function drawSheet() {
+  const body = document.getElementById('sheetBody'), acts = document.getElementById('sheetActions'), back = document.getElementById('sheetBack');
+  const current = getSlot(sheetTarget);
+  document.getElementById('sheetTitle').textContent = slotTitle(sheetTarget) + (sheetSuit ? ` · ${SUIT_NAME[sheetSuit][0]}` : '');
+  back.style.display = sheetSuit ? '' : 'none';
+  if (!sheetSuit) {
+    body.innerHTML = `<div class="suits">` + SUITS.map(s => `<button class="suit-btn s-${s}" data-suit="${s}"><span class="sym">${SUIT_SYM[s]}</span><span class="name">${SUIT_NAME[s][0]}</span></button>`).join('') + `</div>`;
+  } else {
+    const used = usedMap(); let html = '<div class="ranks">';
+    for (const r of [12,0,1,2,3,4,5,6,7,8,9,10,11]) {
+      const id = r * 4 + SUITS.indexOf(sheetSuit);
+      const isHere = id === current, taken = used.has(id) && !isHere;
+      html += cardHTML(id, taken ? 'disabled' : 'pick', `data-id="${id}"`).replace('</div>', (taken ? `<span class="where">${used.get(id)}</span>` : '') + '</div>');
+    }
+    body.innerHTML = html + '</div>';
+  }
+  acts.innerHTML = (current != null ? `<button class="btn danger" id="clearSlot">Clear this card</button>` : '') + `<button class="btn" id="cancelSheet">Cancel</button>`;
+}
+sheet.addEventListener('click', e => {
+  const sb = e.target.closest('.suit-btn'); if (sb) { sheetSuit = sb.dataset.suit; drawSheet(); return; }
+  const pk = e.target.closest('.card.pick'); if (pk) { setSlot(sheetTarget, +pk.dataset.id); closeSheet(); return; }
+  if (e.target.id === 'clearSlot') { setSlot(sheetTarget, null); closeSheet(); return; }
+  if (e.target.id === 'cancelSheet' || e.target.id === 'sheetClose') { closeSheet(); return; }
+  if (e.target.id === 'sheetBack') { sheetSuit = null; drawSheet(); }
+});
+scrim.addEventListener('click', closeSheet);
+document.addEventListener('keydown', e => {
+  if (!sheetTarget) return;
+  const k = e.key.toLowerCase();
+  if (k === 'escape') return closeSheet();
+  if (!sheetSuit) { if (SUITS.includes(k)) { sheetSuit = k; drawSheet(); } return; }
+  if (k === 'backspace') { sheetSuit = null; drawSheet(); return; }
+  const map = { a:12, k:11, q:10, j:9, t:8, '1':8, '0':8, '9':7, '8':6, '7':5, '6':4, '5':3, '4':2, '3':1, '2':0 };
+  if (k in map) { const id = map[k] * 4 + SUITS.indexOf(sheetSuit); const used = usedMap(); if (!used.has(id) || used.get(id) && getSlot(sheetTarget) === id) { setSlot(sheetTarget, id); closeSheet(); } }
+});
+
+// ============================================================
+// Settings & reset
+// ============================================================
+const settings = document.getElementById('settings'), range = document.getElementById('playersRange'), pv = document.getElementById('playersVal');
+document.getElementById('gearBtn').onclick = () => { range.value = S.players; pv.textContent = S.players; settings.classList.add('open'); };
+document.getElementById('settingsClose').onclick = () => settings.classList.remove('open');
+function applyColors() {
+  document.body.classList.toggle('two-color', !!S.twoColor);
+  document.getElementById('fourColorBtn').classList.toggle('selected', !S.twoColor);
+  document.getElementById('twoColorBtn').classList.toggle('selected', !!S.twoColor);
+}
+document.getElementById('fourColorBtn').onclick = () => { S.twoColor = false; save(); applyColors(); };
+document.getElementById('twoColorBtn').onclick = () => { S.twoColor = true; save(); applyColors(); };
+applyColors();
+settings.addEventListener('click', e => { if (e.target === settings) settings.classList.remove('open'); });
+range.addEventListener('input', () => {
+  const n = +range.value; pv.textContent = n; S.players = n;
+  while (S.seats.length < n - 1) S.seats.push({ cards: [null,null], folded: false });
+  S.seats.length = n - 1; save(); render();
+});
+document.getElementById('resetBtn').onclick = () => {
+  S.board = [null,null,null,null,null]; S.hero = [null,null]; S.burn = [];
+  S.seats.forEach(st => { st.cards = [null,null]; st.folded = false; });
+  save(); render();
+};
+
+// ============================================================
+// Odds
+// ============================================================
+function chip(id) { return `<span class="chip s-${suitOf(id)}">${RANKS[rankOf(id)]}${SUIT_SYM[suitOf(id)]}</span>`; }
+function pct(x) { return (x * 100).toFixed(1) + '%'; }
+function computeOdds() {
+  const panel = document.getElementById('oddsPanel');
+  const used = usedMap();
+  const unseen = []; for (let id = 0; id < 52; id++) if (!used.has(id)) unseen.push(id);
+  const hero = S.hero.filter(c => c != null), board = S.board.filter(c => c != null);
+  const active = S.seats.filter(st => !st.folded);
+  let html = `<h2>Your situation</h2>`;
+  if (hero.length < 2) {
+    html += `<p class="hint">Tap your two card slots at the bottom of the table to enter your hand. Odds appear as soon as both cards are in.</p>`;
+    html += `<div class="stat-row"><span class="k">Opponents still in</span><span class="v">${active.length} of ${S.seats.length}</span></div>`;
+    html += `<div class="stat-row"><span class="k">Unseen cards</span><span class="v">${unseen.length}</span></div>`;
+    panel.innerHTML = html; return;
+  }
+  const cur = evaluate([...hero, ...board]);
+  const U = unseen.length;
+
+  // --- equity via Monte Carlo
+  const opps = active.map(st => st.cards.filter(c => c != null));
+  const needBoard = 5 - board.length;
+  const need = needBoard + opps.reduce((a, o) => a + (2 - o.length), 0);
+  const deck = unseen.slice();
+  let wins = 0, ties = 0, losses = 0, iters = 0;
+  const t0 = performance.now();
+  const maxIters = 20000;
+  while (iters < maxIters && (iters < 1500 || performance.now() - t0 < 120)) {
+    for (let i = 0; i < need; i++) { const j = i + Math.floor(Math.random() * (deck.length - i)); const tmp = deck[i]; deck[i] = deck[j]; deck[j] = tmp; }
+    let p = 0;
+    const full = board.slice(); for (let i = 0; i < needBoard; i++) full.push(deck[p++]);
+    const hs = evaluate([...hero, ...full]).s;
+    let lose = false, tie = false;
+    for (const o of opps) {
+      const oc = o.slice(); while (oc.length < 2) oc.push(deck[p++]);
+      const os = evaluate([...oc, ...full]).s;
+      if (os > hs) { lose = true; break; }
+      if (os === hs) tie = true;
+    }
+    if (lose) losses++; else if (tie) ties++; else wins++;
+    iters++;
+  }
+  const w = wins / iters, t = ties / iters, l = losses / iters, eq = w + t / 2;
+  const fair = 1 / (opps.length + 1);
+  let vcls = 'warn', vtxt = 'Marginal';
+  if (eq >= fair * 1.35) { vcls = 'good'; vtxt = 'Ahead'; }
+  else if (eq < fair * 0.8) { vcls = 'bad'; vtxt = 'Behind'; }
+
+  html += `<div class="stat-row"><span class="k">Best hand now</span><span class="v">${describe(cur)}</span></div>`;
+  html += `<div class="stat-row"><span class="k">Equity vs ${opps.length} opponent${opps.length === 1 ? '' : 's'}</span><span class="v big">${pct(eq)} <span class="verdict ${vcls}">${vtxt}</span></span></div>`;
+  html += `<div class="bar"><div class="w" style="width:${w*100}%"></div><div class="t" style="width:${t*100}%"></div><div class="l" style="width:${l*100}%"></div></div>`;
+  html += `<div class="bar-legend"><span>Win ${pct(w)}</span><span>Tie ${pct(t)}</span><span>Lose ${pct(l)}</span></div>`;
+  html += `<p class="hint">Fair share with ${opps.length + 1} players is ${pct(fair)}. Opponents' hidden cards are dealt at random from the ${U} unseen cards (${iters.toLocaleString()} simulated run-outs).</p>`;
+
+  // --- outs
+  if (board.length === 3 || board.length === 4) {
+    const groups = new Map();
+    for (const c of unseen) {
+      const nx = evaluate([...hero, ...board, c]);
+      if (nx.cat > cur.cat) { const nm = CAT_NAMES[nx.cat]; if (!groups.has(nm)) groups.set(nm, []); groups.get(nm).push(c); }
+    }
+    const outs = [...groups.values()].reduce((a, g) => a + g.length, 0);
+    html += `<div class="stat-row"><span class="k">Outs to improve</span><span class="v">${outs} of ${U}</span></div>`;
+    if (outs) {
+      const pNext = outs / U;
+      html += `<div class="stat-row"><span class="k">Hit on next card</span><span class="v">${pct(pNext)}</span></div>`;
+      if (board.length === 3) { const pRiver = 1 - ((U - outs) / U) * ((U - outs - 1) / (U - 1)); html += `<div class="stat-row"><span class="k">Hit by the river</span><span class="v">${pct(pRiver)}</span></div>`; }
+      for (const [nm, g] of [...groups].sort((a, b) => CAT_NAMES.indexOf(b[0]) - CAT_NAMES.indexOf(a[0]))) html += `<div class="outs-group"><span class="g">${nm} (${g.length})</span>${g.map(chip).join('')}</div>`;
+      html += `<p class="hint">Outs are unseen cards that raise your hand to a better category. Some may also improve an opponent, so lean on the equity number for the decision.</p>`;
+    }
+  } else if (board.length === 5) {
+    html += `<p class="hint">All five community cards are out. Your equity above is against random hands for the opponents whose cards you cannot see.</p>`;
+  } else {
+    html += `<p class="hint">Enter the flop to see outs and the chance to improve.</p>`;
+  }
+  html += `<div class="stat-row"><span class="k">Opponents still in</span><span class="v">${active.length} of ${S.seats.length}</span></div><p class="hint">Tap a seat name to mark it folded; folded seats are left out of the equity math.</p>`;
+  panel.innerHTML = html;
+}
+
+render();
+</script>
+</body>
+</html>
