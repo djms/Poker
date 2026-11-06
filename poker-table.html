@@ -56,8 +56,10 @@
     font-size: 11px; font-weight: 600; background: #0e141a; color: #d5dde5; padding: 2px 8px; border-radius: 10px;
     border: 1px solid #334050; cursor: pointer; user-select: none; white-space: nowrap;
   }
-  .seat.folded .label { color: var(--muted); border-color: #2a333d; text-decoration: line-through; }
-  .seat.folded .cards { opacity: .35; filter: grayscale(1); }
+  .seat .label.fold-toggle { padding: 3px 10px; }
+  .seat.folded { opacity: .45; }
+  .seat.folded .label { background: #3a1414; color: #ff8a8a; border-color: #7a2b2b; }
+  .seat.folded .cards { filter: grayscale(1); }
   .seat.hero .label { background: var(--accent); color: #1a1200; border-color: var(--accent); cursor: default; }
   .seat.hero { --card-w: 48px; }
   .cards { display: flex; gap: 3px; }
@@ -354,7 +356,7 @@ function render() {
       html += `<div class="seat hero" style="left:${x}%;top:${y}%"><div class="cards">${slotHTML({kind:'hero',idx:0})}${slotHTML({kind:'hero',idx:1})}</div><div class="label">You</div></div>`;
     } else {
       const st = S.seats[i - 1];
-      html += `<div class="seat ${st.folded ? 'folded' : ''}" style="left:${x}%;top:${y}%"><div class="label" data-seat="${i-1}">Seat ${i}${st.folded ? ' · fold' : ''}</div><div class="cards">${slotHTML({kind:'seat',seat:i-1,idx:0},{back:true})}${slotHTML({kind:'seat',seat:i-1,idx:1},{back:true})}</div></div>`;
+      html += `<div class="seat ${st.folded ? 'folded' : ''}" style="left:${x}%;top:${y}%"><div class="label fold-toggle" data-seat="${i-1}" title="Tap to fold / unfold">${st.folded ? '✕ FOLD' : 'Seat ' + i}</div><div class="cards">${slotHTML({kind:'seat',seat:i-1,idx:0},{back:true})}${slotHTML({kind:'seat',seat:i-1,idx:1},{back:true})}</div></div>`;
     }
   }
   const nb = S.board.filter(c => c != null).length;
@@ -465,8 +467,9 @@ function computeOdds() {
   let html = `<h2>Your situation</h2>`;
   if (hero.length < 2) {
     html += `<p class="hint">Tap your two card slots at the bottom of the table to enter your hand. Odds appear as soon as both cards are in.</p>`;
-    html += `<div class="stat-row"><span class="k">Opponents still in</span><span class="v">${active.length} of ${S.seats.length}</span></div>`;
+    html += `<div class="stat-row"><span class="k">Players still in</span><span class="v">${active.length + 1} of ${S.players}</span></div>`;
     html += `<div class="stat-row"><span class="k">Unseen cards</span><span class="v">${unseen.length}</span></div>`;
+    html += `<p class="hint">Tap a seat name to mark it folded.</p>`;
     panel.innerHTML = html; return;
   }
   const cur = evaluate([...hero, ...board]);
@@ -501,6 +504,7 @@ function computeOdds() {
   if (eq >= fair * 1.35) { vcls = 'good'; vtxt = 'Ahead'; }
   else if (eq < fair * 0.8) { vcls = 'bad'; vtxt = 'Behind'; }
 
+  html += `<div class="stat-row"><span class="k">Players still in</span><span class="v">${opps.length + 1} of ${S.players}</span></div>`;
   html += `<div class="stat-row"><span class="k">Best hand now</span><span class="v">${describe(cur)}</span></div>`;
   html += `<div class="stat-row"><span class="k">Equity vs ${opps.length} opponent${opps.length === 1 ? '' : 's'}</span><span class="v big">${pct(eq)} <span class="verdict ${vcls}">${vtxt}</span></span></div>`;
   html += `<div class="bar"><div class="w" style="width:${w*100}%"></div><div class="t" style="width:${t*100}%"></div><div class="l" style="width:${l*100}%"></div></div>`;
@@ -528,7 +532,7 @@ function computeOdds() {
   } else {
     html += `<p class="hint">Enter the flop to see outs and the chance to improve.</p>`;
   }
-  html += `<div class="stat-row"><span class="k">Opponents still in</span><span class="v">${active.length} of ${S.seats.length}</span></div><p class="hint">Tap a seat name to mark it folded; folded seats are left out of the equity math.</p>`;
+  html += `<p class="hint">Tap a seat name to mark it folded. Folded seats fade out and are left out of the equity math, so with 8 at the table and 6 folds the odds are against the 1 player left.</p>`;
   panel.innerHTML = html;
 }
 
