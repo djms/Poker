@@ -94,6 +94,9 @@
   .card.face .mid { position: absolute; left: 50%; top: 54%; transform: translate(-50%, -50%); font-size: calc(var(--card-w) * .46); line-height: 1; }
   .card.s-h { --c: var(--hearts); } .card.s-d { --c: var(--diamonds); } .card.s-c { --c: var(--clubs); } .card.s-s { --c: var(--spades); }
   body.two-color { --diamonds: var(--hearts); --clubs: var(--spades); }
+  /* small cards (opponent seats, burn pile): rank-only corners, bigger single pip */
+  .seat:not(.hero) .card.face small, .burn .card.face small { display: none; }
+  .seat:not(.hero) .card.face .mid, .burn .card.face .mid { font-size: calc(var(--card-w) * .6); top: 56%; }
   .btn.selected { border-color: var(--accent); color: var(--accent); }
   .card.back {
     background: repeating-linear-gradient(45deg, #566573 0 3px, #4a5866 3px 6px);
