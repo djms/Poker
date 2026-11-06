@@ -131,6 +131,17 @@
   .outs-group .g { font-size: 12px; color: var(--muted); min-width: 110px; }
   .chip { font-weight: 700; font-size: 13px; color: var(--c); background: #fdfdfb; border-radius: 4px; padding: 1px 4px; }
   .chip.s-h { --c: var(--hearts); } .chip.s-d { --c: var(--diamonds); } .chip.s-c { --c: var(--clubs); } .chip.s-s { --c: var(--spades); }
+  .pot-inputs { display: flex; gap: 8px; align-items: flex-end; }
+  .pot-inputs label { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .pot-inputs input {
+    width: 100%; font: inherit; font-size: 20px; font-weight: 600; color: var(--text); background: var(--panel-2);
+    border: 1px solid #334050; border-radius: 10px; padding: 8px 10px; appearance: textfield; -moz-appearance: textfield;
+  }
+  .pot-inputs input::-webkit-outer-spin-button, .pot-inputs input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .pot-inputs input:focus { outline: none; border-color: var(--accent); }
+  .pot-inputs .btn { height: 44px; width: 44px; padding: 0; font-size: 20px; }
+  .pot-verdict { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+  .pot-verdict .verdict { font-size: 16px; padding: 6px 14px; }
   .deck-grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 3px; }
   .deck-grid .card { --card-w: 100%; width: 100%; height: auto; aspect-ratio: 1 / 1.4; cursor: default; font-size: 10px; }
   .deck-grid .card .tl { font-size: 10px; } .deck-grid .card .tl small { font-size: 9px; } .deck-grid .card .mid { font-size: 14px; } .deck-grid .card .br { display: none; }
@@ -189,6 +200,16 @@
   </div>
 
   <section class="panel" id="oddsPanel"></section>
+
+  <section class="panel" id="potPanel">
+    <h2>Should I call?</h2>
+    <div class="pot-inputs">
+      <label>Pot now<input type="number" inputmode="decimal" min="0" placeholder="0" id="potIn"></label>
+      <label>To call<input type="number" inputmode="decimal" min="0" placeholder="0" id="callIn"></label>
+      <button class="btn" id="potClear" title="Clear amounts">×</button>
+    </div>
+    <div id="potResult"></div>
+  </section>
 
   <details class="panel">
     <summary>Unseen cards</summary>
@@ -453,6 +474,7 @@ range.addEventListener('input', () => {
 document.getElementById('resetBtn').onclick = () => {
   S.board = [null,null,null,null,null]; S.hero = [null,null]; S.burn = [];
   S.seats.forEach(st => { st.cards = [null,null]; st.folded = false; });
+  S.pot = null; S.call = null; potIn.value = ''; callIn.value = '';
   save(); render();
 };
 
@@ -473,7 +495,7 @@ function computeOdds() {
     html += `<div class="stat-row"><span class="k">Players still in</span><span class="v">${active.length + 1} of ${S.players}</span></div>`;
     html += `<div class="stat-row"><span class="k">Unseen cards</span><span class="v">${unseen.length}</span></div>`;
     html += `<p class="hint">Tap a seat name to mark it folded.</p>`;
-    panel.innerHTML = html; return;
+    panel.innerHTML = html; lastEq = null; renderPot(); return;
   }
   const cur = evaluate([...hero, ...board]);
   const U = unseen.length;
@@ -537,7 +559,41 @@ function computeOdds() {
   }
   html += `<p class="hint">Tap a seat name to mark it folded. Folded seats fade out and are left out of the equity math, so with 8 at the table and 6 folds the odds are against the 1 player left.</p>`;
   panel.innerHTML = html;
+  lastEq = eq; renderPot();
 }
+
+// ============================================================
+// Pot odds
+// ============================================================
+let lastEq = null;
+const potIn = document.getElementById('potIn'), callIn = document.getElementById('callIn');
+potIn.value = S.pot ?? ''; callIn.value = S.call ?? '';
+function renderPot() {
+  const out = document.getElementById('potResult');
+  const pot = parseFloat(potIn.value), call = parseFloat(callIn.value);
+  if (!(pot >= 0) || !(call >= 0) || (pot === 0 && call === 0)) {
+    out.innerHTML = `<p class="hint">Type what is in the pot and how much you must call. The app works out the equity you need and compares it with the equity above.</p>`; return;
+  }
+  if (call === 0) { out.innerHTML = `<div class="pot-verdict"><span>Nothing to call</span><span class="verdict good">Check</span></div><p class="hint">It costs nothing to see the next card.</p>`; return; }
+  const need = call / (pot + call);
+  const ratio = pot / call;
+  let html = `<div class="stat-row"><span class="k">Pot odds</span><span class="v">${ratio.toFixed(1)} to 1</span></div>`;
+  html += `<div class="stat-row"><span class="k">Equity needed to break even</span><span class="v">${pct(need)}</span></div>`;
+  if (lastEq == null) {
+    html += `<p class="hint">Enter your two cards to compare this with your equity.</p>`;
+  } else {
+    const edge = lastEq - need;
+    let cls = 'bad', txt = 'Fold';
+    if (edge >= need * 0.15) { cls = 'good'; txt = 'Call'; } else if (edge >= 0) { cls = 'warn'; txt = 'Thin call'; }
+    html += `<div class="stat-row"><span class="k">Your equity</span><span class="v">${pct(lastEq)}</span></div>`;
+    html += `<div class="pot-verdict"><span class="hint" style="margin:0">${edge >= 0 ? 'You have ' + pct(edge) + ' more than you need.' : 'You are ' + pct(-edge) + ' short of what you need.'}</span><span class="verdict ${cls}">${txt}</span></div>`;
+    html += `<p class="hint">Equity above assumes random hands. If the bettor raised earlier, shade your equity down before trusting a thin call.</p>`;
+  }
+  out.innerHTML = html;
+}
+potIn.addEventListener('input', () => { S.pot = potIn.value === '' ? null : parseFloat(potIn.value); save(); renderPot(); });
+callIn.addEventListener('input', () => { S.call = callIn.value === '' ? null : parseFloat(callIn.value); save(); renderPot(); });
+document.getElementById('potClear').onclick = () => { potIn.value = ''; callIn.value = ''; S.pot = null; S.call = null; save(); renderPot(); };
 
 render();
 </script>
