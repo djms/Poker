@@ -12,7 +12,13 @@ A single-file, phone-first Texas Hold'em table tracker. Enter your hand, the com
 - Five community slots that unlock in order (flop, turn, river)
 - Best hand, outs with hit probabilities, and Monte Carlo equity that update as cards go in
 - Tap a seat name to mark it folded
-- Four-color or red-and-black deck, chosen in the gear menu
+- Dealer button with automatic small and big blinds
+- Chip tracking per seat (call in one tap, bet/raise from a chip popup), bets slide into the pot on each street
+- "Should I call?" panel with pot odds filled in from the tracked chips
+- Starting hands chart (pairs/suited and unsuited) with your hand highlighted and position advice
+- Optional stacks and side pots
+- Training mode: random deals against rule-based bots, showdown reveal, and grading of your decisions
+- Four-color or red-and-black deck, editable chip values and blinds in the gear menu
 - State survives a refresh (browser local storage)
 - No dependencies: one HTML file
 
