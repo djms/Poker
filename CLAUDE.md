@@ -11,9 +11,11 @@ Daniel plays a low-stakes home game (10c/20c blinds, chips 10c/20c/50c/$1/$5) an
 - Private mirror: Claude artifact https://claude.ai/artifact/9uYQpw5BmEHtT8thSQAjL8 (republish the same file path from Claude Code to update).
 - After any change: commit, push, and republish the artifact.
 
-## Features (as of 2026-11-07)
+## Features (as of 2026-11-23)
 - Oval table, 4-10 players, hero at the bottom. Seat order is clockwise = poker action order. Gear menu sets player count.
 - Card picker bottom sheet: suit first, then rank in A,2..K order; taken cards dimmed with their location. Keyboard shortcuts h/d/c/s then rank work on desktop (not advertised).
+- **Quick card picker** (gear toggle, off by default): one 52-card grid (rows by suit, columns 2..A). One open fills the whole group: both hero cards, both seat cards, or the flop (closes at 3 board cards; turn/river one each). Tapping an outlined card takes it back. Opening on a filled slot replaces just that card.
+- **Show on screen** gear toggles: Bets & chips (hides pot, Call/Raise, bet badges, All call, Bets → pot, Should I call?, and the blinds/chips/stacks settings; skips blind posting), Other players' seats (hides seats; odds panel gets a −/+ "players still in" stepper that folds/unfolds seats from the end), Unseen cards panel (off by default). Training mode forces bets and seats on (`betsOn()`, `seatsOn()`).
 - Per-seat face-down cards; tap to enter exposed cards. Tap a seat name to fold (fades out, excluded from equity). Burned/exposed pile under the board.
 - Board: 5 slots that unlock in order; phase label derived from count.
 - Dealer button + SB/BB badges. `D ›` corner button advances the dealer (re-posts blinds if no action yet). **New hand** = clear cards/bets/pot/folds, move dealer, post blinds.
@@ -28,7 +30,7 @@ Daniel plays a low-stakes home game (10c/20c blinds, chips 10c/20c/50c/$1/$5) an
 - `// --- PURE START/END`: hand evaluator (`evaluate`, `describe`), chart data (`CHART`, `chartCat`, `handKey`), `posInfo`, `chartAdvice`, `sidePots`. These are extracted and unit-tested in node (see Testing).
 - State `S`, accessor object `P` (index 0 = hero, 1..n-1 = seats), `render()` rebuilds the table DOM.
 - Betting: `putIn`, `doCall`, `allCall`, `postBlinds`, `collectBets(animate, done)` (timer-driven, not animation-event-driven).
-- Sheet modes: `card`, `chips`, `number`.
+- Sheet modes: `card`, `quick` (`quickGroup`, `quickPick`), `chips`, `number`.
 - Odds: `simulate()` Monte Carlo, `computeOdds()`, `renderPot()`, `renderChart()`.
 - Training: `T` in-memory hand state, `trainDeal`, `startStreet`, `nextAction`, `botAct`, `heroDecision`, `endStreet`, `showdown`, `renderTrain`.
 

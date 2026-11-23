@@ -104,6 +104,14 @@
   .deck-grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 3px; }
   .deck-grid .card { --card-w: 100%; width: 100%; height: auto; aspect-ratio: 1 / 1.4; cursor: default; font-size: 10px; }
   .deck-grid .card .tl { font-size: 10px; } .deck-grid .card .tl small { font-size: 9px; } .deck-grid .card .mid { font-size: 14px; } .deck-grid .card .br { display: none; }
+  .table-wrap.solo { aspect-ratio: 1 / 0.95; }
+  .qgrid { gap: 3px; }
+  .qgrid .card { cursor: pointer; } .qgrid .card.disabled { cursor: default; opacity: .18; }
+  .qgrid .card .tl { font-size: 12px; } .qgrid .card .tl small { font-size: 10px; } .qgrid .card .mid { font-size: 15px; top: 60%; }
+  .qgrid .card.mine { outline: 3px solid var(--accent); outline-offset: -1px; }
+  .qgrid .suit-row-gap { grid-column: 1 / -1; height: 3px; }
+  .stepper { display: inline-flex; align-items: center; gap: 8px; }
+  .stepper button { width: 34px; height: 30px; padding: 0; font-size: 18px; }
   .pot-inputs { display: flex; gap: 8px; align-items: flex-end; }
   .pot-inputs label { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   input.num { width: 100%; font: inherit; font-size: 20px; font-weight: 600; color: var(--text); background: var(--panel-2); border: 1px solid #334050; border-radius: 10px; padding: 8px 10px; appearance: textfield; -moz-appearance: textfield; }
@@ -202,7 +210,7 @@
 
   <details class="panel" id="outsDetails"><summary>Outs detail</summary><div id="outsBody"></div></details>
   <details class="panel" id="chartDetails"><summary>Starting hands chart</summary><div id="chartBody"></div></details>
-  <details class="panel">
+  <details class="panel" id="unseenPanel">
     <summary>Unseen cards</summary>
     <div class="deck-grid" id="deckGrid"></div>
     <p class="hint">Dimmed cards are already on the table, in your hand, exposed, or burned.</p>
@@ -236,6 +244,13 @@
     <h3>Deck colors</h3>
     <div class="actions" style="margin-top:0"><button class="btn" id="fourColorBtn">Four colors</button><button class="btn" id="twoColorBtn">Red &amp; black</button></div>
 
+    <h3>Show on screen</h3>
+    <label class="toggle"><span>Bets &amp; chips<small>Pot, Call / Raise buttons, bets and the Should I call? panel</small></span><input type="checkbox" id="betsToggle"></label>
+    <label class="toggle"><span>Other players' seats<small>When off, set how many players are still in from the odds panel</small></span><input type="checkbox" id="seatsToggle"></label>
+    <label class="toggle"><span>Quick card picker<small>One grid with all 52 cards. Fills your hand or the flop in one go</small></span><input type="checkbox" id="quickToggle"></label>
+    <label class="toggle"><span>Unseen cards panel</span><input type="checkbox" id="unseenToggle"></label>
+
+    <div id="betSettings">
     <h3>Blinds</h3>
     <div class="row2"><label>Small blind<input class="num" type="number" inputmode="decimal" step="0.01" id="sbIn"></label><label>Big blind<input class="num" type="number" inputmode="decimal" step="0.01" id="bbIn"></label></div>
 
@@ -243,6 +258,7 @@
     <div id="chipRows"></div>
 
     <label class="toggle"><span>Track stacks &amp; side pots<small>Shows each player's money and splits the pot on all-ins</small></span><input type="checkbox" id="stacksToggle"></label>
+    </div>
     <label class="toggle"><span>Training mode<small>Deals random hands and lets you practice against computer players</small></span><input type="checkbox" id="trainToggle"></label>
 
     <div class="actions"><button class="btn danger" id="clearTableBtn">Clear table (keep dealer)</button></div>
@@ -373,7 +389,8 @@ function newSeat() { return { cards: [null,null], folded: false, bet: 0, committ
 function fresh(players = 6) {
   return { v: 2, players, board: [null,null,null,null,null], hero: [null,null], seats: Array.from({ length: players - 1 }, newSeat), burn: [],
     heroBet: 0, heroCommitted: 0, heroStack: 20, heroFolded: false, pot: 0, dealer: 1, sb: 0.10, bb: 0.20, chips: DEFAULT_CHIPS.map(c => ({ ...c })),
-    trackStacks: false, twoColor: false, training: false, trScore: { good: 0, bad: 0, hands: 0 }, potOverride: null, callOverride: null };
+    trackStacks: false, twoColor: false, training: false, trScore: { good: 0, bad: 0, hands: 0 }, potOverride: null, callOverride: null,
+    showBets: true, showSeats: true, quickPick: false, showUnseen: false };
 }
 function load() {
   try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s && s.seats && s.board) return migrate(s); } } catch (e) {}
@@ -408,6 +425,9 @@ const currentBet = () => { let m = 0; for (let i = 0; i < P.n(); i++) m = Math.m
 const activePlayers = () => { const a = []; for (let i = 0; i < P.n(); i++) if (!P.folded(i)) a.push(i); return a; };
 const tableBets = () => { let t = 0; for (let i = 0; i < P.n(); i++) t += P.bet(i); return t; };
 const boardCards = () => S.board.filter(c => c != null);
+// Training needs bets and seats, so it forces both on
+const betsOn = () => !!(S.showBets || S.training);
+const seatsOn = () => !!(S.showSeats || S.training);
 
 function usedMap() {
   const m = new Map();
@@ -463,7 +483,7 @@ function badges(i) {
   return h;
 }
 function actsHTML(i) {
-  if (S.training || P.folded(i) || P.allIn(i)) return '';
+  if (S.training || !betsOn() || P.folded(i) || P.allIn(i)) return '';
   const cb = currentBet(), mine = P.bet(i);
   let h = '<div class="acts">';
   if (cb > mine) h += `<button class="act call" data-act="call" data-p="${i}">Call ${money(cb - mine)}</button>`;
@@ -472,6 +492,7 @@ function actsHTML(i) {
 }
 function seatExtras(i) {
   let h = '';
+  if (!betsOn()) return h;
   if (P.bet(i) > 0) h += `<div class="bet" data-bet="${i}"><span class="chip-dot"></span>${money(P.bet(i))}</div>`;
   if (S.trackStacks) h += `<div class="stack" data-stack="${i}">${money(P.stack(i))}</div>`;
   h += actsHTML(i);
@@ -481,14 +502,16 @@ function render() {
   const n = S.players, tbl = document.getElementById('table');
   if (S.dealer >= n) S.dealer = 0;
   const gap = n >= 8 ? 1.0 : 0.85;
-  document.getElementById('tableWrap').classList.toggle('crowded', n >= 8);
+  const showSeats = seatsOn(), bets = betsOn();
+  document.getElementById('tableWrap').classList.toggle('crowded', n >= 8 && showSeats);
+  document.getElementById('tableWrap').classList.toggle('solo', !showSeats);
   let html = '';
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < (showSeats ? n : 1); i++) {
     const ang = i === 0 ? Math.PI / 2 : Math.PI / 2 + gap + ((i - 1) * (2 * Math.PI - 2 * gap)) / (n - 2);
     const x = 50 + 41 * Math.cos(ang), y = 50 + (i === 0 ? 49 : 46) * Math.sin(ang);
     const toAct = T && T.waiting && i === 0 ? ' to-act' : '';
     if (i === 0) {
-      const top = (S.heroBet > 0 ? `<div class="bet" data-bet="0"><span class="chip-dot"></span>${money(S.heroBet)}</div>` : '') + (S.trackStacks ? `<div class="stack" data-stack="0">${money(S.heroStack)}</div>` : '');
+      const top = !bets ? '' : (S.heroBet > 0 ? `<div class="bet" data-bet="0"><span class="chip-dot"></span>${money(S.heroBet)}</div>` : '') + (S.trackStacks ? `<div class="stack" data-stack="0">${money(S.heroStack)}</div>` : '');
       html += `<div class="seat hero${S.heroFolded ? ' folded' : ''}${toAct}" style="left:${x}%;top:${y}%">${top}<div class="cards">${slotHTML({kind:'hero',idx:0})}${slotHTML({kind:'hero',idx:1})}</div><div class="label">${badges(0)}${S.heroFolded ? '✕ FOLD' : 'You'}</div>${actsHTML(0)}</div>`;
     } else {
       const st = S.seats[i - 1];
@@ -497,7 +520,7 @@ function render() {
   }
   const nb = boardCards().length;
   const phase = ['Pre-flop','Flop','Flop','Flop','Turn','River'][nb];
-  html += `<div class="center"><div class="pot${S.pot > 0 ? '' : ' empty'}" id="potBadge">Pot ${money(S.pot)}</div><div class="phase">${phase}</div><div class="board">`;
+  html += `<div class="center">${bets ? `<div class="pot${S.pot > 0 ? '' : ' empty'}" id="potBadge">Pot ${money(S.pot)}</div>` : ''}<div class="phase">${phase}</div><div class="board">`;
   for (let i = 0; i < 5; i++) html += slotHTML({kind:'board',idx:i}, { locked: i > nb });
   html += `</div><div class="burn-wrap"><div class="phase">Burned / exposed</div><div class="burn">`;
   S.burn.forEach((c, i) => html += slotHTML({kind:'burn',idx:i}));
@@ -507,11 +530,14 @@ function render() {
   document.getElementById('allCallBtn').disabled = !!S.training || currentBet() === 0;
   document.getElementById('collectBtn').disabled = !!S.training || tableBets() === 0;
   document.getElementById('dealerBtn').disabled = !!(T && T.active);
+  document.getElementById('allCallBtn').hidden = !bets; document.getElementById('collectBtn').hidden = !bets;
+  document.getElementById('potPanel').hidden = !bets;
+  document.getElementById('unseenPanel').hidden = !S.showUnseen;
   renderDeck(); renderChart(); computeOdds(); renderTrain();
 }
 function renderDeck() {
   const used = usedMap(); let html = '';
-  for (const s of [0,1,2,3]) for (let r = 12; r >= 0; r--) { const id = r * 4 + s; html += cardHTML(id, used.has(id) ? 'disabled' : ''); }
+  for (const s of [0,1,2,3]) for (let r = 0; r < 13; r++) { const id = r * 4 + s; html += cardHTML(id, used.has(id) ? 'disabled' : ''); }
   document.getElementById('deckGrid').innerHTML = html;
 }
 
@@ -540,6 +566,7 @@ function putIn(i, amt) {
 function doCall(i) { const need = r2(currentBet() - P.bet(i)); if (need > 0) putIn(i, need); save(); render(); }
 function allCall() { const cb = currentBet(); for (const i of activePlayers()) if (P.bet(i) < cb && !P.allIn(i)) putIn(i, cb - P.bet(i)); save(); render(); }
 function postBlinds() {
+  if (!betsOn()) return;
   const n = P.n(), sb = (S.dealer + 1) % n, bb = (S.dealer + 2) % n;
   putIn(sb, S.sb); putIn(bb, S.bb);
 }
@@ -559,7 +586,7 @@ function collectBets(animate, done) {
   for (let i = 0; i < P.n(); i++) { const b = P.bet(i); if (b > 0) { S.pot = r2(S.pot + b); P.setCommitted(i, r2(P.committed(i) + b)); P.setBet(i, 0); } }
   S.potOverride = null; S.callOverride = null;
   save(); render();
-  if (animate && rects.length) {
+  if (animate && rects.length && document.getElementById('potBadge')) {
     const target = document.getElementById('potBadge').getBoundingClientRect();
     const tx = target.left + target.width / 2 - 9, ty = target.top + target.height / 2 - 9;
     const flies = rects.map((r, k) => {
@@ -587,11 +614,45 @@ document.getElementById('newHandBtn').onclick = () => { if (S.training) { trainD
 // ============================================================
 // Bottom sheet: card picker / chips / number
 // ============================================================
-let sheetMode = null, sheetTarget = null, sheetSuit = null, chipCounts = [0,0,0,0,0], sheetDone = null;
+let sheetReplace = false, sheetMode = null, sheetTarget = null, sheetSuit = null, chipCounts = [0,0,0,0,0], sheetDone = null;
 const sheet = document.getElementById('sheet'), scrim = document.getElementById('scrim');
 function showSheet() { sheet.classList.add('open'); scrim.classList.add('open'); }
 function closeSheet() { sheet.classList.remove('open'); scrim.classList.remove('open'); sheetMode = null; sheetTarget = null; sheetDone = null; }
-function openSheet(t) { sheetMode = 'card'; sheetTarget = t; sheetSuit = null; drawSheet(); showSheet(); }
+function openSheet(t) {
+  if (S.quickPick) { sheetMode = 'quick'; sheetTarget = t; sheetReplace = getSlot(t) != null; }
+  else { sheetMode = 'card'; sheetTarget = t; sheetSuit = null; }
+  drawSheet(); showSheet();
+}
+// Quick picker: the slots that one opening of the grid fills
+function quickGroup(t) {
+  if (t.kind === 'hero') return [0,1].map(idx => ({ kind: 'hero', idx }));
+  if (t.kind === 'seat') return [0,1].map(idx => ({ kind: 'seat', seat: t.seat, idx }));
+  if (t.kind === 'board') return [0,1,2,3,4].map(idx => ({ kind: 'board', idx }));
+  return [t];
+}
+function quickTitle() {
+  const t = sheetTarget;
+  if (sheetReplace) return 'Change ' + slotTitle(t).toLowerCase();
+  if (t.kind === 'hero') return `Your hand · ${S.hero.filter(c => c != null).length} of 2`;
+  if (t.kind === 'seat') return `Seat ${t.seat + 1} · ${S.seats[t.seat].cards.filter(c => c != null).length} of 2`;
+  if (t.kind === 'board') { const nb = boardCards().length; return nb < 3 ? `Flop · ${nb} of 3` : nb === 3 ? 'Turn' : nb === 4 ? 'River' : 'Board'; }
+  return 'Burned / exposed card';
+}
+function quickPick(id) {
+  const t = sheetTarget;
+  if (sheetReplace || t.kind === 'burn') { closeSheet(); setSlot(t, id); return; }
+  const g = quickGroup(t);
+  if (t.kind === 'board') {
+    const nb = boardCards().length; if (nb >= 5) { closeSheet(); return; }
+    setSlot({ kind: 'board', idx: nb }, id);
+    if (boardCards().length >= 3) closeSheet(); else drawSheet();
+    return;
+  }
+  const order = [t, ...g.filter(s => s.idx !== t.idx)];
+  const slot = order.find(s => getSlot(s) == null); if (!slot) { closeSheet(); return; }
+  setSlot(slot, id);
+  if (g.every(s => getSlot(s) != null)) closeSheet(); else drawSheet();
+}
 function openChips(i, done) { sheetMode = 'chips'; sheetTarget = i; chipCounts = [0,0,0,0,0]; sheetDone = done || null; drawSheet(); showSheet(); }
 function openNumber(i) { sheetMode = 'number'; sheetTarget = i; drawSheet(); showSheet(); setTimeout(() => document.getElementById('numIn')?.focus(), 250); }
 function drawSheet() {
@@ -612,6 +673,16 @@ function drawSheet() {
       body.innerHTML = html + '</div>';
     }
     acts.innerHTML = (current != null ? `<button class="btn danger" id="clearSlot">Clear this card</button>` : '') + `<button class="btn" id="cancelSheet">Cancel</button>`;
+  } else if (sheetMode === 'quick') {
+    title.textContent = quickTitle();
+    const used = usedMap(), g = quickGroup(sheetTarget), mineIds = new Set(sheetReplace ? [getSlot(sheetTarget)] : g.map(getSlot).filter(c => c != null));
+    let html = '<div class="deck-grid qgrid">';
+    for (const s of [0,1,2,3]) for (let r = 0; r < 13; r++) {
+      const id = r * 4 + s, mine = mineIds.has(id), taken = used.has(id) && !mine;
+      html += cardHTML(id, mine ? 'mine' : taken ? 'disabled' : 'pick', `data-id="${id}"`);
+    }
+    body.innerHTML = html + '</div><p class="hint">' + (sheetReplace ? 'Tap the new card.' : 'Tap the cards in any order. Tap an outlined card to take it back.') + '</p>';
+    acts.innerHTML = (sheetReplace ? `<button class="btn danger" id="clearSlot">Clear this card</button>` : '') + `<button class="btn" id="cancelSheet">Done</button>`;
   } else if (sheetMode === 'chips') {
     const i = sheetTarget, cb = currentBet(), need = r2(cb - P.bet(i));
     title.textContent = `${P.name(i)} · ${cb > 0 ? 'Raise' : 'Bet'}`;
@@ -634,6 +705,11 @@ sheet.addEventListener('click', e => {
     const pk = e.target.closest('.card.pick'); if (pk) { const t = sheetTarget; closeSheet(); setSlot(t, +pk.dataset.id); return; }
     if (e.target.id === 'clearSlot') { const t = sheetTarget; closeSheet(); setSlot(t, null); return; }
     if (e.target.id === 'sheetBack') { sheetSuit = null; drawSheet(); }
+  } else if (sheetMode === 'quick') {
+    if (e.target.id === 'clearSlot') { const t = sheetTarget; closeSheet(); setSlot(t, null); return; }
+    const pk = e.target.closest('.card.pick'); if (pk) { quickPick(+pk.dataset.id); return; }
+    const mn = e.target.closest('.card.mine');
+    if (mn && !sheetReplace) { const id = +mn.dataset.id, slot = quickGroup(sheetTarget).find(s => getSlot(s) === id); if (slot) { setSlot(slot, null); drawSheet(); } return; }
   } else if (sheetMode === 'chips') {
     const m = e.target.closest('[data-minus]'); if (m) { const k = +m.dataset.minus; if (chipCounts[k] > 0) chipCounts[k]--; drawSheet(); return; }
     const c = e.target.closest('.chipbtn'); if (c) { chipCounts[+c.dataset.chip]++; drawSheet(); return; }
@@ -664,6 +740,11 @@ function drawSettings() {
   document.getElementById('chipRows').innerHTML = S.chips.map((c, k) => `<div class="chiprow" style="--cc:${c.color}"><div class="dot"></div><input class="num" data-cname="${k}" value="${c.name}"><input class="num" type="number" inputmode="decimal" step="0.01" data-cval="${k}" value="${c.value}"></div>`).join('');
   document.getElementById('stacksToggle').checked = !!S.trackStacks;
   document.getElementById('trainToggle').checked = !!S.training;
+  document.getElementById('betsToggle').checked = !!S.showBets;
+  document.getElementById('seatsToggle').checked = !!S.showSeats;
+  document.getElementById('quickToggle').checked = !!S.quickPick;
+  document.getElementById('unseenToggle').checked = !!S.showUnseen;
+  document.getElementById('betSettings').hidden = !S.showBets;
   applyColors();
 }
 document.getElementById('gearBtn').onclick = () => { drawSettings(); settings.classList.add('open'); };
@@ -684,6 +765,10 @@ document.getElementById('chipRows').addEventListener('input', e => {
 });
 document.getElementById('stacksToggle').onchange = e => { S.trackStacks = e.target.checked; save(); render(); };
 document.getElementById('trainToggle').onchange = e => { S.training = e.target.checked; if (!S.training) trainStop(); save(); render(); };
+document.getElementById('betsToggle').onchange = e => { S.showBets = e.target.checked; if (S.showBets) { if (tableBets() === 0 && S.pot === 0 && boardCards().length === 0) postBlinds(); } else if (!S.training) clearBetsOnly(); document.getElementById('betSettings').hidden = !S.showBets; save(); render(); };
+document.getElementById('seatsToggle').onchange = e => { S.showSeats = e.target.checked; save(); render(); };
+document.getElementById('quickToggle').onchange = e => { S.quickPick = e.target.checked; save(); };
+document.getElementById('unseenToggle').onchange = e => { S.showUnseen = e.target.checked; save(); render(); };
 document.getElementById('clearTableBtn').onclick = () => { settings.classList.remove('open'); if (S.training) trainStop(); clearTable(false); };
 function applyColors() {
   document.body.classList.toggle('two-color', !!S.twoColor);
@@ -718,7 +803,9 @@ function computeOdds() {
   const hero = S.hero.filter(c => c != null), board = boardCards();
   const oppIdx = activePlayers().filter(i => i !== 0);
   let html = `<h2>Your situation</h2>`;
-  html += `<div class="stat-row"><span class="k">Players still in</span><span class="v">${oppIdx.length + (S.heroFolded ? 0 : 1)} of ${S.players}</span></div>`;
+  const stillIn = oppIdx.length + (S.heroFolded ? 0 : 1);
+  if (seatsOn()) html += `<div class="stat-row"><span class="k">Players still in</span><span class="v">${stillIn} of ${S.players}</span></div>`;
+  else html += `<div class="stat-row"><span class="k">Players still in</span><span class="v stepper"><button class="btn" id="oppLess" ${oppIdx.length <= 1 ? 'disabled' : ''}>−</button>${stillIn} of ${S.players}<button class="btn" id="oppMore" ${oppIdx.length >= S.players - 1 ? 'disabled' : ''}>+</button></span></div>`;
   const me = posInfo(0, S.dealer, S.players);
   html += `<div class="stat-row"><span class="k">Your position</span><span class="v">${me.name}</span></div>`;
   if (hero.length < 2) {
@@ -759,10 +846,18 @@ function computeOdds() {
     const pots = sidePots(players);
     if (pots.length > 1) pots.forEach((p, k) => html += `<div class="stat-row"><span class="k">${k === 0 ? 'Main pot' : 'Side pot ' + k}</span><span class="v">${money(p.amount)} <span class="hint" style="display:inline">· ${p.eligible.map(P.name).join(', ')}</span></span></div>`);
   }
-  html += `<p class="hint">Tap a seat name to fold it. Folded seats are left out of the equity math.</p>`;
+  html += `<p class="hint">${seatsOn() ? 'Tap a seat name to fold it.' : 'Use − when someone folds.'} Folded players are left out of the equity math.</p>`;
   panel.innerHTML = html; outsBody.innerHTML = outsHtml;
   lastEq = r.eq; renderPot();
 }
+
+// Seats hidden: the stepper folds / unfolds seats from the end of the table
+document.getElementById('oddsPanel').addEventListener('click', e => {
+  if (e.target.id === 'oppLess') { const st = [...S.seats].reverse().find(s => !s.folded); if (st) st.folded = true; }
+  else if (e.target.id === 'oppMore') { const st = S.seats.find(s => s.folded); if (st) st.folded = false; }
+  else return;
+  save(); render();
+});
 
 // ---------- pot odds ----------
 const potIn = document.getElementById('potIn'), callIn = document.getElementById('callIn');
