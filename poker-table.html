@@ -107,7 +107,8 @@
   .table-wrap.solo { aspect-ratio: 1 / 0.95; }
   .qgrid { gap: 3px; }
   .qgrid .card { cursor: pointer; } .qgrid .card.disabled { cursor: default; opacity: .18; }
-  .qgrid .card .tl { font-size: 12px; } .qgrid .card .tl small { font-size: 10px; } .qgrid .card .mid { font-size: 15px; top: 60%; }
+  .qgrid .card .tl { font-size: 13px; left: 0; right: 0; top: 8%; text-align: center; } .qgrid .card .tl small { display: none; }
+  .qgrid .card .mid { font-size: 17px; top: 68%; }
   .qgrid .card.mine { outline: 3px solid var(--accent); outline-offset: -1px; }
   .qgrid .suit-row-gap { grid-column: 1 / -1; height: 3px; }
   .stepper { display: inline-flex; align-items: center; gap: 8px; }
@@ -387,10 +388,10 @@ const DEFAULT_CHIPS = [
 ];
 function newSeat() { return { cards: [null,null], folded: false, bet: 0, committed: 0, stack: 20 }; }
 function fresh(players = 6) {
-  return { v: 2, players, board: [null,null,null,null,null], hero: [null,null], seats: Array.from({ length: players - 1 }, newSeat), burn: [],
+  return { v: 3, players, board: [null,null,null,null,null], hero: [null,null], seats: Array.from({ length: players - 1 }, newSeat), burn: [],
     heroBet: 0, heroCommitted: 0, heroStack: 20, heroFolded: false, pot: 0, dealer: 1, sb: 0.10, bb: 0.20, chips: DEFAULT_CHIPS.map(c => ({ ...c })),
     trackStacks: false, twoColor: false, training: false, trScore: { good: 0, bad: 0, hands: 0 }, potOverride: null, callOverride: null,
-    showBets: true, showSeats: true, quickPick: false, showUnseen: false };
+    showBets: true, showSeats: false, quickPick: true, showUnseen: false };
 }
 function load() {
   try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s && s.seats && s.board) return migrate(s); } } catch (e) {}
@@ -401,7 +402,8 @@ function migrate(s) {
   for (const k of Object.keys(d)) if (s[k] === undefined) s[k] = d[k];
   s.seats.forEach(st => { for (const k of Object.keys(newSeat())) if (st[k] === undefined) st[k] = newSeat()[k]; });
   if (!s.chips || s.chips.length !== 5) s.chips = DEFAULT_CHIPS.map(c => ({ ...c }));
-  s.v = 2; return s;
+  if ((s.v || 0) < 3) { s.showSeats = false; s.quickPick = true; }
+  s.v = 3; return s;
 }
 let S = load();
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
