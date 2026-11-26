@@ -866,9 +866,8 @@ function computeOdds() {
     const groups = new Map();
     for (const c of unseen) { const nx = evaluate([...hero, ...board, c]); if (nx.cat > cur.cat) { const nm = CAT_NAMES[nx.cat]; if (!groups.has(nm)) groups.set(nm, []); groups.get(nm).push(c); } }
     const outs = [...groups.values()].reduce((a, g) => a + g.length, 0);
-    html += `<div class="stat-row"><span class="k">Outs to improve</span><span class="v">${outs} of ${U}</span></div>`;
+    html += `<div class="stat-row"><span class="k">Improve on next card</span><span class="v">${pct(outs / U)}</span></div>`;
     if (outs) {
-      html += `<div class="stat-row"><span class="k">Hit on next card</span><span class="v">${pct(outs / U)}</span></div>`;
       if (board.length === 3) html += `<div class="stat-row"><span class="k">Hit by the river</span><span class="v">${pct(1 - ((U - outs) / U) * ((U - outs - 1) / (U - 1)))}</span></div>`;
       for (const [nm, g] of [...groups].sort((a, b) => CAT_NAMES.indexOf(b[0]) - CAT_NAMES.indexOf(a[0]))) outsHtml += `<div class="outs-group"><span class="g">${nm} (${g.length})</span>${g.map(chip).join('')}</div>`;
       outsHtml += `<p class="hint">Outs are unseen cards that raise your hand to a better category. Some may also improve an opponent, so lean on the equity number for the decision.</p>`;
@@ -880,7 +879,7 @@ function computeOdds() {
     const pots = sidePots(players);
     if (pots.length > 1) pots.forEach((p, k) => html += `<div class="stat-row"><span class="k">${k === 0 ? 'Main pot' : 'Side pot ' + k}</span><span class="v">${money(p.amount)} <span class="hint" style="display:inline">· ${p.eligible.map(P.name).join(', ')}</span></span></div>`);
   }
-  html += `<p class="hint">${seatsOn() ? 'Tap a seat name to fold it.' : 'Use − when someone folds.'} Folded players are left out of the equity math.</p>`;
+  if (S.verbose) html += `<p class="hint">${seatsOn() ? 'Tap a seat name to fold it.' : 'Use − when someone folds.'} Folded players are left out of the equity math.</p>`;
   panel.innerHTML = html; outsBody.innerHTML = outsHtml;
   lastEq = r.eq; renderPot();
 }
