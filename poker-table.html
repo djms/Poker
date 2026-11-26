@@ -110,6 +110,7 @@
   .qgrid .card .tl { font-size: 13px; left: 0; right: 0; top: 8%; text-align: center; } .qgrid .card .tl small { display: none; }
   .qgrid .card .mid { font-size: 17px; top: 68%; }
   .qgrid .card.mine { outline: 3px solid var(--accent); outline-offset: -1px; }
+  .qgrid .card.mine.focus { outline: 3px solid #fff; box-shadow: 0 0 0 3px var(--accent); z-index: 1; }
   .qgrid .suit-row-gap { grid-column: 1 / -1; height: 3px; }
   .stepper { display: inline-flex; align-items: center; gap: 8px; }
   .stepper button { width: 34px; height: 30px; padding: 0; font-size: 18px; }
@@ -681,13 +682,14 @@ function drawSheet() {
     acts.innerHTML = (current != null ? `<button class="btn danger" id="clearSlot">Clear this card</button>` : '') + `<button class="btn" id="cancelSheet">Cancel</button>`;
   } else if (sheetMode === 'quick') {
     title.textContent = quickTitle();
-    const used = usedMap(), g = quickGroup(sheetTarget), mineIds = new Set(sheetReplace ? [getSlot(sheetTarget)] : g.map(getSlot).filter(c => c != null));
+    // the whole group is outlined; when changing one card, that card is highlighted
+    const used = usedMap(), g = quickGroup(sheetTarget), mineIds = new Set(g.map(getSlot).filter(c => c != null)), focusId = sheetReplace ? getSlot(sheetTarget) : null;
     let html = '<div class="deck-grid qgrid">';
     for (const s of [0,1,2,3]) for (let r = 0; r < 13; r++) {
       const id = r * 4 + s, mine = mineIds.has(id), taken = used.has(id) && !mine;
-      html += cardHTML(id, mine ? 'mine' : taken ? 'disabled' : 'pick', `data-id="${id}"`);
+      html += cardHTML(id, mine ? (id === focusId ? 'mine focus' : 'mine') : taken ? 'disabled' : 'pick', `data-id="${id}"`);
     }
-    body.innerHTML = html + '</div><p class="hint">' + (sheetReplace ? 'Tap the new card.' : 'Tap the cards in any order. Tap an outlined card to take it back.') + '</p>';
+    body.innerHTML = html + '</div><p class="hint">' + (sheetReplace ? 'Tap a new card to replace the highlighted one. Tap an outlined card to take it back.' : 'Tap the cards in any order. Tap an outlined card to take it back.') + '</p>';
     acts.innerHTML = (sheetReplace ? `<button class="btn danger" id="clearSlot">Clear this card</button>` : '') + `<button class="btn" id="cancelSheet">Done</button>`;
   } else if (sheetMode === 'chips') {
     const i = sheetTarget, cb = currentBet(), need = r2(cb - P.bet(i));
@@ -715,7 +717,7 @@ sheet.addEventListener('click', e => {
     if (e.target.id === 'clearSlot') { const t = sheetTarget; closeSheet(); setSlot(t, null); return; }
     const pk = e.target.closest('.card.pick'); if (pk) { quickPick(+pk.dataset.id); return; }
     const mn = e.target.closest('.card.mine');
-    if (mn && !sheetReplace) { const id = +mn.dataset.id, slot = quickGroup(sheetTarget).find(s => getSlot(s) === id); if (slot) { setSlot(slot, null); drawSheet(); } return; }
+    if (mn) { const id = +mn.dataset.id, slot = quickGroup(sheetTarget).find(s => getSlot(s) === id); if (slot) { setSlot(slot, null); sheetReplace = false; drawSheet(); } return; }
   } else if (sheetMode === 'chips') {
     const m = e.target.closest('[data-minus]'); if (m) { const k = +m.dataset.minus; if (chipCounts[k] > 0) chipCounts[k]--; drawSheet(); return; }
     const c = e.target.closest('.chipbtn'); if (c) { chipCounts[+c.dataset.chip]++; drawSheet(); return; }
