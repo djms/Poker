@@ -847,11 +847,12 @@ function computeOdds() {
     html += `<div class="stat-row"><span class="k">Right now${board.length ? ' on the ' + (board.length === 3 ? 'flop' : 'turn') : ' (2 cards)'}</span><span class="v">${pct(r.now.w)} ahead</span></div>`;
     html += `<div class="bar"><div class="w" style="width:${r.now.w*100}%"></div><div class="t" style="width:${r.now.t*100}%"></div><div class="l" style="width:${r.now.l*100}%"></div></div>`;
     html += `<div class="bar-legend"><span>Ahead ${pct(r.now.w)}</span><span>Tied ${pct(r.now.t)}</span><span>Behind ${pct(r.now.l)}</span></div>`;
-    const drawing = r.now.l - r.l;
-    if (drawing >= 0.1) html += `<p class="hint">You are behind now more often than at showdown: part of your equity comes from drawing.</p>`;
-    else if (-drawing >= 0.1) html += `<p class="hint">You are ahead now more often than at showdown: later cards can catch opponents up, so charging them to see more cards helps.</p>`;
+    const gap = (r.now.w + r.now.t / 2) - r.eq;
+    if (gap <= -0.1) html += `<p class="hint">Now ≪ showdown: you're <b>chasing</b>. Only pay if the price is right.</p>`;
+    else if (gap >= 0.1) html += `<p class="hint">Now ≫ showdown: you're <b>ahead but at risk</b>. Bet to protect your hand.</p>`;
+    else html += `<p class="hint">Now ≈ showdown: <b>stable</b>. Later cards won't change much.</p>`;
   }
-  html += `<p class="hint">Fair share with ${opps.length + 1} players is ${pct(fair)}. Hidden cards are dealt at random from the ${U} unseen cards (${r.iters.toLocaleString()} run-outs).</p>`;
+  html += `<p class="hint">Fair share with ${opps.length + 1} players is ${pct(fair)}: your equity if every hand were equal. <b>Strong</b> = well above it, <b>Weak</b> = below it.</p>`;
   let outsHtml = '';
   if (board.length === 3 || board.length === 4) {
     const groups = new Map();
